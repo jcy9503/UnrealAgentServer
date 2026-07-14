@@ -52,19 +52,19 @@ public sealed class ApiStreamSpan
 	
 	public ChatEvent? Process(RawMessageStreamEvent Event)
 	{
-		if (Event.TryPickContentBlockStart(out RawContentBlockStartEvent? StartEvt))
+		if (Event.TryPickContentBlockStart(out RawContentBlockStartEvent? StartEvt))	// 블록 시작
 			return ProcessBlockStart(StartEvt);
 		
-		if (Event.TryPickContentBlockDelta(out RawContentBlockDeltaEvent? DeltaEvt))
+		if (Event.TryPickContentBlockDelta(out RawContentBlockDeltaEvent? DeltaEvt))	// 글자 조각 (델타)
 			return ProcessDelta(DeltaEvt);
 
-		if (Event.TryPickContentBlockStop(out RawContentBlockStopEvent? StopEvt))
+		if (Event.TryPickContentBlockStop(out RawContentBlockStopEvent? StopEvt))		// 블록 끝
 			return ProcessBlockStop();
 		
-		if (Event.TryPickStart(out RawMessageStartEvent? StartMsgEvt))
+		if (Event.TryPickStart(out RawMessageStartEvent? StartMsgEvt))					// 메시지 시작
 			return ProcessMessageStart(StartMsgEvt);
 		
-		if (Event.TryPickDelta(out RawMessageDeltaEvent? MsgDelta))
+		if (Event.TryPickDelta(out RawMessageDeltaEvent? MsgDelta))						// 메시지 끝 (StopReason)
 			return ProcessMessageDelta(MsgDelta);
 
 		return null;

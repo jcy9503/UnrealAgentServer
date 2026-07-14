@@ -5,6 +5,6 @@
 /// </summary>
 /// <param name="Text"></param>
 public sealed record UserInput(string Text)
-{
+{	
 	public static implicit operator UserInput(string Text) => new(Text);
 }
