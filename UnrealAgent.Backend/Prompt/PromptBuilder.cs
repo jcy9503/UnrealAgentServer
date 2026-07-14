@@ -34,6 +34,7 @@ public sealed class PromptBuilder
 	{
 		Model = "claude-opus-4-8",
 		MaxTokens = 1024,
+		CacheControl = new CacheControlEphemeral(),
 		System = new List<TextBlockParam> { new() { Text = BuildSystemPrompt(Session) } },
 		Messages = Session.Conversation.ToAnthropicMessages(),
 		Thinking = new ThinkingConfigAdaptive(),
