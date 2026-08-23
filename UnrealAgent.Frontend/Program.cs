@@ -5,16 +5,30 @@ using UnrealAgent.Backend.Auth;
 using UnrealAgent.Backend.Conversation;
 using UnrealAgent.Backend.Core;
 using UnrealAgent.Backend.Prompt;
+using UnrealAgent.Backend.Tool;
+using UnrealAgent.Backend.Tool.Tools;
 
 ServiceCollection Services = new ServiceCollection();
+
+Services.AddHttpClient("OAuth", C => C.Timeout = TimeSpan.FromSeconds(30));
+
+// --- Auth 모듈 ---
 Services.AddSingleton<AuthConfig>();
+
+// --- Agent 모듈 ---
 Services.AddSingleton<AgentSession>();
+
+// --- Runtime 모듈 ---
 Services.AddSingleton<PromptBuilder>();
 
-ServiceProvider serviceProvider = Services.BuildServiceProvider();
-AuthConfig Auth = serviceProvider.GetRequiredService<AuthConfig>();
-AgentSession AgentSession = serviceProvider.GetRequiredService<AgentSession>();
-PromptBuilder PromptBuilder = serviceProvider.GetRequiredService<PromptBuilder>();
+// --- Tool 모듈 ---
+Services.AddSingleton<ToolRegistry>();
+
+ServiceProvider Provider = Services.BuildServiceProvider();
+AuthConfig Auth = Provider.GetRequiredService<AuthConfig>();
+AgentSession AgentSession = Provider.GetRequiredService<AgentSession>();
+PromptBuilder PromptBuilder = Provider.GetRequiredService<PromptBuilder>();
+Provider.GetRequiredService<ToolRegistry>().DiscoverTools(typeof(WebSearch).Assembly);
 
 Auth.Load();
 
