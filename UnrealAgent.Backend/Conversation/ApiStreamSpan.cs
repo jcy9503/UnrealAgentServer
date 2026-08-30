@@ -22,6 +22,12 @@ public sealed class ApiStreamSpan
 		/// 도구 실행 없이 다음 API 호출로 이어감.
 		/// </summary>
 		public sealed record Continue(AssistantSpan CompletedSpan) : Result;
+
+		/// <summary>
+		/// 도구 실행이 필요.
+		/// 실행 후 다음 API 호출을 계속
+		/// </summary>
+		public sealed record ExecuteTools(AssistantSpan CompletedSpan, IReadOnlyList<Block.ToolUse> ToolCalls) : Result;
 		
 		/// <summary>
 		/// 대화가 완료
@@ -33,6 +39,7 @@ public sealed class ApiStreamSpan
 	{
 		public sealed record Text : ActiveBlock;
 		public sealed record Thinking : ActiveBlock;
+		public sealed record ToolUse(string Id, string Name) : ActiveBlock;
 	}
 	
 	private ActiveBlock? CurrentBlock;
@@ -40,6 +47,7 @@ public sealed class ApiStreamSpan
 	private readonly StringBuilder TextBuffer     = new();
 	private readonly StringBuilder ThinkingBuffer = new();
 	private          string?       ThinkingSignature;
+	private readonly StringBuilder ToolJsonBuffer = new();
 	
 	/// <summary>
 	/// 메시지 레벨 종료 사유
@@ -77,18 +85,28 @@ public sealed class ApiStreamSpan
 			case ActiveBlock.Text when DeltaEvt.Delta.TryPickText(out TextDelta? TextDelta):
 			{
 				TextBuffer.Append(TextDelta.Text);
+				
 				return new ChatEvent.Text(TextDelta.Text);
 			}
 
 			case ActiveBlock.Thinking when DeltaEvt.Delta.TryPickThinking(out ThinkingDelta? ThinkingDelta):
 			{
 				ThinkingBuffer.Append(ThinkingDelta.Thinking);
+				
 				return new ChatEvent.Thinking(ThinkingDelta.Thinking);
 			}
 
 			case ActiveBlock.Thinking when DeltaEvt.Delta.TryPickSignature(out SignatureDelta? SignatureDelta):
 			{
 				ThinkingSignature = SignatureDelta.Signature;
+				
+				return null;
+			}
+
+			case ActiveBlock.ToolUse when DeltaEvt.Delta.TryPickInputJson(out InputJsonDelta? JsonDelta):
+			{
+				ToolJsonBuffer.Append(JsonDelta.PartialJson);
+
 				return null;
 			}
 			
@@ -124,6 +142,15 @@ public sealed class ApiStreamSpan
 
 				break;
 			}
+
+			case ActiveBlock.ToolUse { Id: { } Id, Name: { } Name }:
+			{
+				string InputJson = ToolJsonBuffer.ToString();
+				AssistantBlocks.Add(new Block.ToolUse(Id, Name, InputJson));
+				ToolJsonBuffer.Clear();
+
+				break;
+			}
 		}
 		
 		CurrentBlock = null;
@@ -153,6 +180,10 @@ public sealed class ApiStreamSpan
 		{
 			CurrentBlock = new ActiveBlock.Thinking();
 		}
+		else if (StartEvt.ContentBlock.TryPickToolUse(out ToolUseBlock? ToolUse))
+		{
+			CurrentBlock = new ActiveBlock.ToolUse(ToolUse.ID, ToolUse.Name);
+		}
 
 		return null;
 	}
@@ -167,6 +198,16 @@ public sealed class ApiStreamSpan
 		{
 			AssistantBlocks = AssistantBlocks.ToList(),
 		};
+		
+		// 도구 실행 요청이 있는지 체크
+		List<Block.ToolUse> ToolCalls = [.. AssistantBlocks.OfType<Block.ToolUse>()];
+
+		if (ToolCalls.Count > 0 && FinalStopReason is StopReason.ToolUse)
+			return new Result.ExecuteTools(CompleteSpan, ToolCalls);
+
+		// 서버에 문제가 있었으므로 다시 실행
+		if (FinalStopReason is StopReason.PauseTurn)
+			return new Result.Continue(CompleteSpan);
 		
 		return new Result.EndSpan(CompleteSpan);
 	}

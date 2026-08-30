@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Anthropic.Models.Messages;
 using Microsoft.Extensions.DependencyInjection;
+using UnrealAgent.Backend.Agent;
 using UnrealAgent.Backend.Tool.Attributes;
 
 namespace UnrealAgent.Backend.Tool;
@@ -31,6 +32,24 @@ public sealed class ToolRegistry(IServiceProvider ServiceProvider)
 	/// 등록된 모든 스키마 반환
 	/// </summary>
 	public IReadOnlyList<AnthropicTool> GetAllSchemas() => Tools.Values.Select(E => E.Schema).ToList().AsReadOnly();
+	
+	/// <summary>
+	/// 도구를 이름으로 실행
+	/// </summary>
+	public async Task<ToolResult> ExecuteAsync(string Name, string InputJson, AgentSession Session, CancellationToken Ct)
+	{
+		if (!Tools.TryGetValue(Name, out ToolEntry? Entry))
+			return ToolResult.Error($"Unknown Tool: {Name}");
+
+		try
+		{
+			return await Entry.Tool.ExecuteAsync(InputJson, Session, Ct);
+		}
+		catch (Exception Ex)
+		{
+			return ToolResult.Error(Ex.Message);
+		}
+	}
 
 	/// <summary>
 	/// 지정된 어셈블리에서 [AgentTool] + IAgentTool 클래스를 스캔하여 등록

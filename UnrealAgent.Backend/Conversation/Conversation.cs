@@ -1,4 +1,5 @@
-﻿using Anthropic.Models.Messages;
+﻿using System.Text.Json;
+using Anthropic.Models.Messages;
 using Block = UnrealAgent.Backend.Core.Block;
 
 namespace UnrealAgent.Backend.Conversation;
@@ -40,7 +41,12 @@ public sealed class Conversation
 			// Assistant 메시지
 			foreach (AssistantSpan Span in MessageSpan.AssistantSpans)
 			{
+				// Assistant의 대답
 				Messages.Add(ConvertAssistantBlocks(Span.AssistantBlocks));
+				
+				// Assistant 도구 실행 결과
+				if (Span.ToolExecutions.Count > 0)
+					Messages.Add(ConvertToolResults(Span.ToolExecutions));
 			}
 		}
 
@@ -85,9 +91,32 @@ public sealed class Conversation
 
 					break;
 				}
+
+				case Block.ToolUse { Id: { } Id, Name: { } Name, InputJson: { } InputJson }:
+				{
+					Dictionary<string, JsonElement> ParsedInput = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(InputJson) ?? new Dictionary<string, JsonElement>();
+					ContentBlocks.Add(new ToolUseBlockParam{ ID = Id, Name = Name, Input = ParsedInput });
+					
+					break;
+				}
 			}
 		}
 		
 		return new MessageParam { Role = Role.Assistant, Content = ContentBlocks };
+	}
+	
+	/// <summary>
+	/// 도구 실행 결과를 Anthropic API user 메시지(ToolResult)로 변환
+	/// </summary>
+	private static MessageParam ConvertToolResults(List<AssistantSpan.ToolExecution> Executions)
+	{
+		List<ContentBlockParam> ResultBlocks = Executions.Select(E => (ContentBlockParam)new ToolResultBlockParam
+		{
+			ToolUseID = E.ToolUseId,
+			Content = E.Output,
+			IsError = E.bIsError ? true : null
+		}).ToList();
+		
+		return new MessageParam { Role = Role.User, Content = ResultBlocks };
 	}
 }

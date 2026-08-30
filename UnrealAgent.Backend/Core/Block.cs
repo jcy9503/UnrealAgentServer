@@ -5,4 +5,6 @@ public abstract record Block
 	public sealed record Text(string Content) : Block;
 
 	public sealed record Thinking(string Content, string? Signature) : Block;
+
+	public sealed record ToolUse(string Id, string Name, string InputJson) : Block;
 }

@@ -7,6 +7,7 @@ using UnrealAgent.Backend.Core;
 using UnrealAgent.Backend.Prompt;
 using UnrealAgent.Backend.Tool;
 using UnrealAgent.Backend.Tool.Tools;
+using Block = UnrealAgent.Backend.Core.Block;
 
 ServiceCollection Services = new ServiceCollection();
 
@@ -23,12 +24,14 @@ Services.AddSingleton<PromptBuilder>();
 
 // --- Tool 모듈 ---
 Services.AddSingleton<ToolRegistry>();
+Services.AddSingleton<ToolExecutor>();
 
 ServiceProvider Provider = Services.BuildServiceProvider();
 AuthConfig Auth = Provider.GetRequiredService<AuthConfig>();
 AgentSession AgentSession = Provider.GetRequiredService<AgentSession>();
 PromptBuilder PromptBuilder = Provider.GetRequiredService<PromptBuilder>();
 Provider.GetRequiredService<ToolRegistry>().DiscoverTools(typeof(WebSearch).Assembly);
+ToolExecutor ToolExecutor = Provider.GetRequiredService<ToolExecutor>();
 
 Auth.Load();
 
@@ -48,6 +51,7 @@ if (!Auth.IsApiKeyConfigured())
 	Console.WriteLine("API Key 저장 완료!");
 }
 
+// 대화 루프
 while (true)
 {
 	// 사용자 입력 대기
@@ -62,63 +66,65 @@ while (true)
 	
 	// 대화 히스토리에 사용자 입력 추가
 	MessageSpan CurrentMessageSpan = AgentSession.Conversation.AddMessageSpan(Input);
-
-	// API 요청 파라미터 구성
-	MessageCreateParams Parameters = PromptBuilder.Build(AgentSession);
-
-	// 스트리밍 응답 수신 및 출력
-	ApiStreamSpan ApiStreamSpan = new ApiStreamSpan();
-
-	// 현재 출력 중인 섹션(thinking / text)을 추적해 전환 시 헤더를 한 번만 출력
-	string? Section = null;
-
-	await foreach (RawMessageStreamEvent Event in Auth.Client!.Messages.CreateStreaming(Parameters))
+	
+	// 에이전트 루프: 도구 실행이 필요하면 API를 반복 호출
+	bool bContinue = true;
+	while (bContinue)
 	{
-		switch (ApiStreamSpan.Process(Event))
+		// API 요청 파라미터 구성
+		MessageCreateParams Parameters = PromptBuilder.Build(AgentSession);
+		
+		// 스트리밍 응답 수신 및 출력
+		ApiStreamSpan ApiStreamSpan = new ApiStreamSpan();
+		await foreach (RawMessageStreamEvent Event in Auth.Client!.Messages.CreateStreaming(Parameters))
 		{
-			case ChatEvent.Thinking Think:
+			switch (ApiStreamSpan.Process(Event))
 			{
-				if (Section != "thinking")
-				{
-					Section = "thinking";
-					Console.ForegroundColor = ConsoleColor.DarkGray;
-					Console.WriteLine("\n🤔 [생각]");
-				}
+				case ChatEvent.Text Txt:
+					Console.Write(Txt.Content);
 
-				Console.ForegroundColor = ConsoleColor.DarkGray;
-				Console.Write(Think.Content);
+					break;
+			}
+		}
+		
+		// 완료된 응답을 대화 히스토리에 저장
+		switch (ApiStreamSpan.Complete())
+		{
+			case ApiStreamSpan.Result.EndSpan { CompletedSpan: { } AssistantSpan }:
+			{
+				CurrentMessageSpan.AssistantSpans.Add(AssistantSpan);
+				bContinue = false;
 
 				break;
 			}
 
-			case ChatEvent.Text Txt:
+			case ApiStreamSpan.Result.ExecuteTools { CompletedSpan: { } AssistantSpan, ToolCalls: { } ToolCalls }:
 			{
-				if (Section != "text")
+				CurrentMessageSpan.AssistantSpans.Add(AssistantSpan);
+				
+				// 도구 실행
+				foreach (Block.ToolUse ToolCall in ToolCalls)
 				{
-					Section = "text";
-					Console.ResetColor();
-					Console.WriteLine("\n💬 [답변]");
+					await foreach (ChatEvent Evt in ToolExecutor.ExecuteAsync(ToolCall, AssistantSpan, AgentSession))
+					{
+						if (Evt is ChatEvent.ToolStart Tool)
+							Console.WriteLine($"\n-- {Tool.Name} : {Tool.Input} 도구 사용 --");
+					}
 				}
+				
+				// 도구 결과를 포함하여 다음 API 호출로 이어감
+				break;
+			}
 
-				Console.Write(Txt.Content);
-
+			case ApiStreamSpan.Result.Continue { CompletedSpan: { } AssistantSpan }:
+			{
+				CurrentMessageSpan.AssistantSpans.Add(AssistantSpan);
+				
+				// 잘린 응답을 이어서 생성
 				break;
 			}
 		}
 	}
-	
-	// 완료된 응답을 대화 히스토리에 저장
-	switch (ApiStreamSpan.Complete())
-	{
-		case ApiStreamSpan.Result.EndSpan { CompletedSpan: { } AssistantSpan }:
-		{
-			CurrentMessageSpan.AssistantSpans.Add(AssistantSpan);
 
-			break;
-		}
-	}
-
-	Console.ResetColor();
-	
 	Console.WriteLine();
 }

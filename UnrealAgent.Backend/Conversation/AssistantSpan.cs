@@ -12,4 +12,8 @@ public sealed class AssistantSpan
 	/// 어시스턴트 응답 블록 목록
 	/// </summary>
 	public required IReadOnlyList<Block> AssistantBlocks { get; init; }
+
+	public sealed record ToolExecution(string ToolUseId, string Name, string Output, bool bIsError);
+
+	public List<ToolExecution> ToolExecutions { get; } = [];
 }
