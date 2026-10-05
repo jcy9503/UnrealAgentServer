@@ -33,7 +33,7 @@ public sealed class PromptBuilder(ToolRegistry ToolRegistry)
 	/// </summary>
 	public MessageCreateParams Build(AgentSession Session) => new()
 	{
-		Model = "claude-opus-4-8",
+		Model = "claude-opus-5-5",
 		MaxTokens = 1024,
 		CacheControl = new CacheControlEphemeral(),
 		System = new List<TextBlockParam> { new() { Text = BuildSystemPrompt(Session) } },
