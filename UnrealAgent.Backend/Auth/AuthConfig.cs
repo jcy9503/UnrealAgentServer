@@ -12,7 +12,7 @@ public sealed class AuthConfig
 {
 	private readonly string ConfigPath = Path.Combine
 		(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), 
-		 "UnrealAgent", "AuthConfig.json");
+		 ".unrealagent", "AuthConfig.json");
 
 	private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 	
