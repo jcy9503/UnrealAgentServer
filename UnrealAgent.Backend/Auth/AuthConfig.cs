@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Nodes;
 using Anthropic;
+using UnrealAgent.Backend.Core;
 
 namespace UnrealAgent.Backend.Auth;
 
@@ -10,9 +11,7 @@ namespace UnrealAgent.Backend.Auth;
 /// </summary>
 public sealed class AuthConfig
 {
-	private readonly string ConfigPath = Path.Combine
-		(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), 
-		 ".unrealagent", "AuthConfig.json");
+	private readonly string ConfigPath = Path.Combine(AgentPaths.UserConfigDir, "AuthConfig.json");
 
 	private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 	

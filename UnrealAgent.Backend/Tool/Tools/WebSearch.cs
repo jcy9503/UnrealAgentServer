@@ -65,7 +65,7 @@ public class WebSearch(AuthConfig Auth) : AgentTool<WebSearch.Input>
 		// 서브 API 호출로 검색을 실행
 		Message Response = await Auth.Client.Messages.Create(new MessageCreateParams
 		{
-			Model = "claude-haiku-5-5-20251001",
+			Model = "claude-haiku-5-5",
 			MaxTokens = 1024,
 			System = new List<TextBlockParam>
 			{

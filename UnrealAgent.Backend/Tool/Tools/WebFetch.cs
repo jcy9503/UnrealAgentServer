@@ -345,7 +345,7 @@ public class WebFetch(AuthConfig Auth, IHttpClientFactory HttpClientFactory) : A
 		{
 			Message Response = await Auth.Client!.Messages.Create(new MessageCreateParams
 			{
-				Model = "claude-haiku-5-5-20251001",
+				Model = "claude-haiku-5-5",
 				MaxTokens = SummaryMaxTokens,
 				System = new List<TextBlockParam>(),
 				Messages =
